@@ -53,6 +53,29 @@ module mydao::DAO {
         list : Table<address,bool>,
     }
 
+    // === Additional Functionalities ===
+
+    // Function to list all available rental notices on the platform
+    public fun list_rental_notices(platform: &RentalPlatform) -> Vec<RentalNotice> {
+        let mut notices = Vec::new();
+        for (_, notice) in table::iter::<ID, RentalNotice>(&platform.notices) {
+            notices.push(notice);
+        }
+        notices
+    }
+
+    // Function to retrieve details of a specific rental notice by house ID
+    public fun get_rental_notice(platform: &RentalPlatform, house_id: ID) -> Option<RentalNotice> {
+        table::get::<ID, RentalNotice>(&platform.notices, house_id)
+    }
+
+    // Function to cancel a rental notice and remove it from the platform
+    public entry fun cancel_rental_notice(platform: &mut RentalPlatform, house_id: ID, ctx: &mut TxContext) {
+        table::remove::<ID, RentalNotice>(&mut platform.notices, house_id);
+        object::delete(house_id);
+    }
+
+
 
     //* ----------Events----------
     // Event to record proposal creation
