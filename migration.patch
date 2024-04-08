@@ -1,0 +1,16 @@
+--- sources/dao.move
++++ sources/dao.move
+@@ -11 +11 @@
+-    struct DAO has drop{
++    public struct DAO has drop{
+@@ -15 +15 @@
+-    struct Proposal has key,store {
++    public struct Proposal has key,store {
+@@ -27 +27 @@
+-    struct SepcialList has key, store{
++    public struct SepcialList has key, store{
+--- sources/gov_coin.move
++++ sources/gov_coin.move
+@@ -8 +8 @@
+-    struct GOVERNANCECOIN has drop{
++    public struct GOVERNANCECOIN has drop{
