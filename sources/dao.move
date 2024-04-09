@@ -7,22 +7,19 @@ module mydao::DAO {
 
 
 
-
     //* ----------Error codes-----------
-    // // Use another coin except the governance coin for voting
-    // const WRONG_COIN_TYPE: u64 = 101;
     // The sender does not have enough balance to vote
-    const INSUFFICIENT_BALANCE: u64 = 102;
+    const E_INSUFFICIENT_BALANCE: u64 = 102;
     // Duplicate voting
-    const DUPLICATE_VOTE: u64 = 103;
+    const E_DUPLICATE_VOTE: u64 = 103;
     // The vote is not enabled for the proposal
-    const INSUFFICIENT_VOTES: u64 = 104;
+    const E_INSUFFICIENT_VOTES: u64 = 104;
     // The proposal voting has not started yet
-    const VOTING_NOT_STARTED: u64 = 105;
+    const E_VOTING_NOT_STARTED: u64 = 105;
     // The proposal voting has ended
-    const VOTING_ENDED: u64 = 106;
+    const E_VOTING_ENDED: u64 = 106;
     // The proposal voting not ended and cannot be executed
-    const VOTING_NOT_ENDED: u64 = 107;
+    const E_VOTING_NOT_ENDED: u64 = 107;
 
 
 
@@ -36,8 +33,8 @@ module mydao::DAO {
         description: vector<u8>,
         votes_for: u64,
         votes_against: u64,
-        // Minimal amount of votes required for the proposal to pass and excute,
-        // both for and against votes are counted, in closed interval.
+        // Minimum number of votes required for a proposal to be approved and executed.
+        // This includes both 'for' and 'against' votes within a closed interval.
         minimal_votes_required: u64,
         voted:Table<address,bool>,
         // The time when the voting starts and ends, in milliseconds seconds since the Unix epoch
@@ -77,7 +74,7 @@ module mydao::DAO {
         proposal_id: ID,
     }
 
-    fun init(otw:DAO, ctx: &mut sui::tx_context::TxContext) {
+    fun init(otw:DAO, ctx: &mut TxContext) {
         package::claim_and_keep(otw,ctx);
         let special_list = SepcialList{
             id: object::new(ctx),
@@ -94,8 +91,13 @@ module mydao::DAO {
         init(dao,ctx);
     }
 
-    public fun create_proposal(ctx: &mut TxContext, description:
-    vector<u8>,minimal_votes_required: u64, voting_start: u64, voting_end: u64) {
+    public fun create_proposal(
+        ctx: &mut TxContext, 
+        description: vector<u8>,
+        minimal_votes_required: u64, 
+        voting_start: u64, 
+        voting_end: u64
+    ) {
         let proposal = Proposal {
             id: object::new(ctx),
             description,
@@ -108,20 +110,24 @@ module mydao::DAO {
             voting_end,
         };
 
-        let proposal_creation_record = ProposalCreatedEvent {
+        event::emit(ProposalCreatedEvent {
             proposal_id: object::uid_to_inner(&proposal.id),
             description,
             minimal_votes_required,
             voting_start,
             voting_end,
-        };
-        event::emit(proposal_creation_record);
+        });
 
         transfer::share_object(proposal);
     }
 
-    public fun vote(ctx: &mut TxContext, proposal: &mut Proposal, vote: bool, amount:
-    u64,governance_coin : &Coin<GOVERNANCECOIN>) {
+    public fun vote(
+        ctx: &mut TxContext, 
+        proposal: &mut Proposal, 
+        vote: bool, 
+        amount: u64,
+        governance_coin : &Coin<GOVERNANCECOIN>
+    ) {
 
         // Ensure the time epoch is within the voting period
         let time_now = tx_context::epoch_timestamp_ms(ctx);
@@ -130,46 +136,43 @@ module mydao::DAO {
         let sender = tx_context::sender(ctx);
         // The maximum amount of votes is the governance coin balance of the sender
         let balance = coin::value(governance_coin);
-        assert!(balance >= amount, INSUFFICIENT_BALANCE);
+        assert!(balance >= amount, E_INSUFFICIENT_BALANCE);
         
         // Allow only one vote per proposal for an address. 
-        assert!(!proposal.voted.contains(sender), DUPLICATE_VOTE);
+        assert!(!proposal.voted.contains(sender), E_DUPLICATE_VOTE);
 
 
         // Increase the vote count accordingly
         if (vote) {
-            proposal.votes_for = proposal.votes_for+amount;
+            proposal.votes_for = proposal.votes_for + amount;
         } else {
-            proposal.votes_against = proposal.votes_against+amount;
+            proposal.votes_against = proposal.votes_against + amount;
         };
 
         proposal.voted.add(sender,vote);
 
         // Record the vote
-        let vote_record = VoteCastEvent {
+        event::emit(VoteCastEvent {
             proposal_id: object::uid_to_inner(&proposal.id),
             voter: sender,
             vote,
             amount,
-        };
-        event::emit(vote_record);
+        });
 
     }
 
     public fun execute_proposal(ctx: &mut TxContext, proposal: &mut Proposal) {
         // The proposal can be executed only if the minimal amount of votes is reached
-        assert!(total_votes(proposal)>= proposal.minimal_votes_required,
-        INSUFFICIENT_VOTES);
+        assert!(total_votes(proposal) >= proposal.minimal_votes_required, E_INSUFFICIENT_VOTES);
         // Ensure the time epoch is within the voting period
         let time_now = tx_context::epoch_timestamp_ms(ctx);
-        assert!(time_now > proposal.voting_end, VOTING_NOT_ENDED);
+        assert!(time_now > proposal.voting_end, E_VOTING_NOT_ENDED);
 
 
         proposal.executed = true;
-        let proposal_execution_record = ProposalExecutedEvent {
+        event::emit(ProposalExecutedEvent {
             proposal_id: object::uid_to_inner(&proposal.id),
-        };
-        event::emit(proposal_execution_record);
+        });
     }
 
     public fun total_votes(proposal: &Proposal) :u64 {
@@ -177,8 +180,8 @@ module mydao::DAO {
     }
 
     fun assure_time_in_voting_period(proposal: &Proposal, time: u64) {
-        assert!(time >= proposal.voting_start, VOTING_NOT_STARTED);
-        assert!(time <= proposal.voting_end, VOTING_ENDED);
+        assert!(time >= proposal.voting_start, E_VOTING_NOT_STARTED);
+        assert!(time <= proposal.voting_end, E_VOTING_ENDED);
     }
 
 
